@@ -4,33 +4,39 @@ import os
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 
-# --- CONFIGURATION ---
+# --- কনফিগারেশন ---
 TOKEN = '7962381986:AAHSw32MC4IQPbHDaW-C550lZenz9fnCWHg' # এখানে আপনার বট টোকেন দিন
-ADMIN_ID = 7767589524 # এখানে আপনার আইডি দিন (অবশ্যই integer)
+ADMIN_ID = 7767589524     # এখানে আপনার আইডি দিন (integer)
 DATA_FILE = 'bot_data.json'
 
+# ডাটা লোড ও সেভ করার ফাংশন
 def load_data():
     if os.path.exists(DATA_FILE):
         try:
             with open(DATA_FILE, 'r') as f: return json.load(f)
         except: pass
-    return {"password": "Rdsvai11", "welcome_msg": "হ্যালো! আপনি যা লিখবেন তা অ্যাডমিনের কাছে পৌঁছে যাবে।", "users": {}, "blocked": []}
+    return {
+        "password": "Rdsvai11", 
+        "welcome_msg": "হ্যালো! আপনি যা লিখবেন তা অ্যাডমিনের কাছে পৌঁছে যাবে।", 
+        "users": {}, 
+        "blocked": []
+    }
 
 def save_data(data):
     with open(DATA_FILE, 'w') as f: json.dump(data, f)
 
 db = load_data()
 
-# States
+# কনভারসেশন স্টেটসমূহ
 PASS, HOME, BCAST, S_ID, S_TXT, BLK, UNB, SETS, C_PASS, C_WEL = range(10)
 
-# Keyboards
+# --- কিবোর্ডসমূহ ---
 def main_kb():
     return ReplyKeyboardMarkup([
         ['👥 USER LIST', '💬 SENT MSG'],
         ['📢 BROADCAST', '🚫 BLOCK'],
         ['✅ UNBAN', '📑 BLOCK LIST'],
-        ['⚙️ SETTINGS']
+        ['⚙️ SETTINGS', '🚪 LOGOUT']
     ], resize_keyboard=True)
 
 def sets_kb():
@@ -39,7 +45,7 @@ def sets_kb():
         ['⬅️ Back']
     ], resize_keyboard=True)
 
-# --- Handlers ---
+# --- সাধারণ ইউজার হ্যান্ডলার ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     uid = str(user.id)
@@ -47,7 +53,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if uid in db['blocked']:
         return
 
-    # User Register
+    # ইউজার রেজিস্টার করা
     db['users'][uid] = {"name": user.full_name, "username": f"@{user.username}"}
     save_data(db)
 
@@ -63,28 +69,28 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if uid in db['blocked'] or user.id == ADMIN_ID:
         return
     
-    # Forward to Admin
+    # অ্যাডমিনকে মেসেজ পাঠানো
     await context.bot.send_message(
         chat_id=ADMIN_ID, 
         text=f"📩 *নতুন মেসেজ!*\n👤 নাম: {user.full_name}\n🆔 আইডি: `{user.id}`\n\nবার্তা: {update.message.text}",
         parse_mode='Markdown'
     )
 
-# --- Admin Panel Logic ---
+# --- অ্যাডমিন প্যানেল লজিক ---
 async def admin_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID: return
-    await update.message.reply_text("🔐 পাসওয়ার্ড দিন:", reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text("🔐 প্যানেল পাসওয়ার্ড দিন:", reply_markup=ReplyKeyboardRemove())
     return PASS
 
 async def auth(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.text == db['password']:
-        await update.message.reply_text("✅ অ্যাক্সেস মঞ্জুর!", reply_markup=main_kb())
+        await update.message.reply_text("✅ অ্যাক্সেস মঞ্জুর! মেনু সিলেক্ট করুন:", reply_markup=main_kb())
         return HOME
     else:
-        await update.message.reply_text("❌ ভুল পাসওয়ার্ড! আবার চেষ্টা করুন /admin")
+        await update.message.reply_text("❌ ভুল পাসওয়ার্ড! আবার চেষ্টা করতে /admin লিখুন।")
         return ConversationHandler.END
 
-async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def admin_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     
     if text == "👥 USER LIST":
@@ -95,7 +101,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return HOME
 
     elif text == "📢 BROADCAST":
-        await update.message.reply_text("প্রচারের জন্য মেসেজটি লিখুন (বা বাতিল করতে /cancel লিখুন):")
+        await update.message.reply_text("প্রচারের জন্য মেসেজটি লিখুন (বাতিল করতে /cancel):")
         return BCAST
 
     elif text == "💬 SENT MSG":
@@ -111,21 +117,26 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return UNB
 
     elif text == "📑 BLOCK LIST":
-        await update.message.reply_text(f"🚫 ব্লকড আইডি: {db['blocked']}")
+        await update.message.reply_text(f"🚫 ব্লকড আইডিগুলো: {db['blocked'] or 'কেউ নেই'}")
         return HOME
 
     elif text == "⚙️ SETTINGS":
-        await update.message.reply_text("সেটিংস মেনু:", reply_markup=sets_kb())
+        await update.message.reply_text("⚙️ সেটিংস মেনু:", reply_markup=sets_kb())
         return SETS
+
+    elif text == "🚪 LOGOUT":
+        await update.message.reply_text("অ্যাডমিন প্যানেল থেকে লগআউট করা হয়েছে।", reply_markup=ReplyKeyboardRemove())
+        return ConversationHandler.END
     
     return HOME
 
+# --- অ্যাকশন হ্যান্ডলারস ---
 async def do_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message.text
     count = 0
     for uid in db['users']:
         try:
-            await context.bot.send_message(chat_id=uid, text=f"📢 *ঘোষণা:*\n\n{msg}", parse_mode='Markdown')
+            await context.bot.send_message(chat_id=int(uid), text=f"📢 *ঘোষণা:*\n\n{msg}", parse_mode='Markdown')
             count += 1
         except: pass
     await update.message.reply_text(f"✅ {count} জনের কাছে পাঠানো হয়েছে।", reply_markup=main_kb())
@@ -140,9 +151,9 @@ async def do_send_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         target = context.user_data['target_id']
         await context.bot.send_message(chat_id=target, text=f"💬 *অ্যাডমিনের বার্তা:*\n\n{update.message.text}", parse_mode='Markdown')
-        await update.message.reply_text("✅ পাঠানো হয়েছে!", reply_markup=main_kb())
+        await update.message.reply_text("✅ মেসেজ পাঠানো হয়েছে!", reply_markup=main_kb())
     except:
-        await update.message.reply_text("❌ পাঠানো যায়নি। আইডি ঠিক আছে কি?", reply_markup=main_kb())
+        await update.message.reply_text("❌ পাঠানো যায়নি। আইডি সঠিক তো?", reply_markup=main_kb())
     return HOME
 
 async def do_block(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -161,23 +172,24 @@ async def do_unban(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"✅ আইডি {uid} আনব্যান করা হয়েছে।", reply_markup=main_kb())
     return HOME
 
+# --- সেটিংস লজিক ---
 async def settings_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     t = update.message.text
     if t == '🔑 Change Password':
-        await update.message.reply_text("নতুন পাসওয়ার্ড দিন:")
+        await update.message.reply_text("নতুন পাসওয়ার্ডটি লিখুন:")
         return C_PASS
     if t == '👋 Change Welcome Message':
-        await update.message.reply_text("নতুন Welcome Message লিখুন:")
+        await update.message.reply_text("নতুন Welcome Message টি লিখুন:")
         return C_WEL
     if t == '⬅️ Back':
-        await update.message.reply_text("মেনু:", reply_markup=main_kb())
+        await update.message.reply_text("প্রধান মেনু:", reply_markup=main_kb())
         return HOME
     return SETS
 
 async def update_pass(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db['password'] = update.message.text
     save_data(db)
-    await update.message.reply_text("✅ পাসওয়ার্ড আপডেট হয়েছে!", reply_markup=sets_kb())
+    await update.message.reply_text("✅ পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে!", reply_markup=sets_kb())
     return SETS
 
 async def update_wel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -187,9 +199,10 @@ async def update_wel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return SETS
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("অপারেশন বাতিল করা হয়েছে।", reply_markup=main_kb())
+    await update.message.reply_text("অপারেশন বাতিল।", reply_markup=main_kb())
     return HOME
 
+# --- মেইন রানার ---
 def main():
     app = Application.builder().token(TOKEN).build()
     
@@ -197,7 +210,7 @@ def main():
         entry_points=[CommandHandler('admin', admin_start)],
         states={
             PASS: [MessageHandler(filters.TEXT & ~filters.COMMAND, auth)],
-            HOME: [MessageHandler(filters.TEXT & ~filters.COMMAND, buttons)],
+            HOME: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_buttons)],
             BCAST: [MessageHandler(filters.TEXT & ~filters.COMMAND, do_broadcast)],
             S_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_send_id)],
             S_TXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, do_send_msg)],
@@ -215,7 +228,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_msg))
     
-    print("Bot is running...")
+    print("Bot is starting...")
     app.run_polling()
 
 if __name__ == '__main__':
